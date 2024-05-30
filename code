@@ -1,0 +1,130 @@
+#include <opencv2/core.hpp>
+#include <opencv2/opencv.hpp>
+#include <iostream>
+#include <vector>
+#include <windows.h>
+using namespace cv;
+using namespace std;
+void MoveMouse(int dx, int dy) {
+    POINT cursorPos;
+    GetCursorPos(&cursorPos);
+    SetCursorPos(cursorPos.x + dx, cursorPos.y + dy);
+}
+void SimulateMouseClick() {
+    mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
+    Sleep(100); // Simulate click delay
+    mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
+}
+int main() {
+    Mat frame, image_hsv, movementMask, clickMask, mask;
+    VideoCapture cap(0);
+    // Thresholds for color calibration
+    int lowerHue = 0, lowerSaturation = 0, lowerValue = 0;
+    int upperHue = 255, upperSaturation = 255, upperValue = 255;
+ 
+    // Thresholds for mouse movement control
+    int moveLowerHue = 100, moveLowerSat = 55, moveLowerVal = 0;
+    int moveUpperHue = 163, moveUpperSat = 255, moveUpperVal = 255;
+    // Thresholds for click control
+    int clickLowerHue = 0, clickLowerSat = 95, clickLowerVal = 145;
+    int clickUpperHue = 255, clickUpperSat = 255, clickUpperVal = 255;
+    if (!cap.isOpened()) {
+        cout << "Error al leer la camara" << endl;
+        return 1;
+    }
+    namedWindow("Settings", WINDOW_AUTOSIZE);
+    createTrackbar("Lower Hue", "Settings", &lowerHue, 255, nullptr);
+    createTrackbar("Higher Hue", "Settings", &upperHue, 255, nullptr);
+    createTrackbar("Lower Saturation", "Settings", &lowerSaturation, 255, nullptr);
+    createTrackbar("Higher Saturation", "Settings", &upperSaturation, 255, nullptr);
+    createTrackbar("Lower Value", "Settings", &lowerValue, 255, nullptr);
+    createTrackbar("Higher Value", "Settings", &upperValue, 255, nullptr);
+    while (1) {
+        cap >> frame;
+        if (frame.empty()) break;
+        cvtColor(frame, image_hsv, COLOR_BGR2HSV);
+ 
+        Scalar lowerThreshold(lowerHue, lowerSaturation, lowerValue);
+        Scalar upperThreshold(upperHue, upperSaturation, upperValue);
+        inRange(image_hsv, lowerThreshold, upperThreshold, mask);
+ 
+        Scalar moveLowerThreshold(moveLowerHue, moveLowerSat, moveLowerVal);
+        Scalar moveUpperThreshold(moveUpperHue, moveUpperSat, moveUpperVal);
+        inRange(image_hsv, moveLowerThreshold, moveUpperThreshold, movementMask);
+        Scalar clickLowerThreshold(clickLowerHue, clickLowerSat, clickLowerVal);
+        Scalar clickUpperThreshold(clickUpperHue, clickUpperSat, clickUpperVal);
+        inRange(image_hsv, clickLowerThreshold, clickUpperThreshold, clickMask);
+        vector<vector<Point>> movementContours, clickContours;
+        findContours(movementMask, movementContours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
+        findContours(clickMask, clickContours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
+        double maxMoveArea = 0.0, maxClickArea = 0.0;
+        vector<Point> largestMovementContour, largestClickContour;
+        for (const auto& contour : movementContours) {
+            double area = contourArea(contour);
+            if (area > maxMoveArea) {
+                maxMoveArea = area;
+                largestMovementContour = contour;
+            }
+        }
+        for (const auto& contour : clickContours) {
+            double area = contourArea(contour);
+            if (area > maxClickArea) {
+                maxClickArea = area;
+                largestClickContour = contour;
+            }
+        }
+        if (!largestMovementContour.empty()) {
+            Moments m = moments(largestMovementContour);
+            int cx = int(m.m10 / m.m00);
+            int cy = int(m.m01 / m.m00);
+            drawContours(frame, vector<vector<Point>>{largestMovementContour}, -1, Scalar(255, 0, 0), 3);
+            circle(frame, Point(cx, cy), 8, Scalar(0, 255, 0), 3);
+            // Code for moving the mouse based on the centroid
+            if (cx < frame.cols / 3 && cy < frame.rows / 3 && maxMoveArea > 200) {
+                cout << "UP-RIGHT" << endl;
+                MoveMouse(25, -25); // Move mouse up-right
+            }
+            else if (cx < frame.cols / 3 && cy > 2 * frame.rows / 3 && maxMoveArea > 200) {
+                cout << "DOWN-RIGHT" << endl;
+                MoveMouse(25, 25); // Move mouse down-right
+            }
+            else if (cx > 2 * frame.cols / 3 && cy < frame.rows / 3 && maxMoveArea > 200) {
+                cout << "UP-LEFT" << endl;
+                MoveMouse(-25, -25); // Move mouse up-left
+            }
+            else if (cx > 2 * frame.cols / 3 && cy > 2 * frame.rows / 3 && maxMoveArea > 200) {
+                cout << "DOWN-LEFT" << endl;
+                MoveMouse(-25, 25); // Move mouse down-left
+            }
+            else if (cx < frame.cols / 3 && maxMoveArea > 200) {
+                cout << "RIGHT" << endl;
+                MoveMouse(25, 0); // Move mouse right
+            }
+            else if (cx > 2 * frame.cols / 3 && maxMoveArea > 200) {
+                cout << "LEFT" << endl;
+                MoveMouse(-25, 0); // Move mouse left
+            }
+            else if (cy < frame.rows / 3 && maxMoveArea > 200) {
+                cout << "UP" << endl;
+                MoveMouse(0, -25); // Move mouse up
+            }
+            else if (cy > 2 * frame.rows / 3 && maxMoveArea > 200) {
+                cout << "DOWN" << endl;
+                MoveMouse(0, 25); // Move mouse down
+            }
+        }
+        if (!largestClickContour.empty() && maxClickArea > 600) {
+            cout << "CLICK" << endl;
+            SimulateMouseClick(); 
+        }
+        //imshow("Settings", mask);
+        imshow("Movement Mask", movementMask);
+        imshow("Click Mask", clickMask);
+        imshow("Original Frame", frame);
+        char c = (char)waitKey(25);
+        if (c == 27) break; // Exit on ESC
+    }
+    cap.release();
+    destroyAllWindows();
+    return 0;
+}
