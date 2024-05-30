@@ -4,6 +4,16 @@ We chose it due to its intuitive, fun, and easy-to-understand gameplay. Addition
 We started working on the functional part of our code and motion sensors, encountering various issues such as the camera having difficulty detecting movements, and our code presenting some errors. The most serious problem was that the game did not detect the camera's movements, hence not recognizing the assigned controls. This problem caused several days of delays and headaches. We will present each function and tool in the project's code so you can understand its functionality and enjoy it fully.
 Lastly, it is important to clarify that this project was carried out in collaboration with JellyMan46766 and 185239.github.io , and myself. You might also find the documentation on their profiles. Additionally, we include a demonstration video of the final result. Below, I will attach the descriptions and functions of the code.
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+Function to move the mouse cursor by dx, dy
+void MoveMouse(int dx, int dy) {
+    POINT cursorPos;
+    GetCursorPos(&cursorPos); // Get current cursor position
+    SetCursorPos(cursorPos.x + dx, cursorPos.y + dy); // Set new cursor position
+}
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
 
 Libraries Included:
 
